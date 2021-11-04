@@ -97,6 +97,36 @@
                                   </div>
                                   <div class="fieldDescription">${LibraryAccessHelp}</div>
                               </div>
+                              <h2>
+                                Per LDAP search Library Access
+                                <button is="emby-button" type="button" class="fab btnNewKey submit emby-button" style="margin-left:1em" title="Add"> <span class="material-icons add" aria-hidden="true"></span> </button>
+                              </h2>
+                              <div class="fieldDescription">Select a set of Libraries to allow for different LDAP search matches. When a new LDAP user signs in 
+                                for the first time, if they match one of these searches, their Library access will be set to the enabled
+                                Libraries. If no match is found, the default Library access will be used.<br>
+                                <p><b>NOTE:</b> Changes to these tables will not affect users that have already logged in using LDAP credentials.</p>
+                              </div>
+                              <br>
+                              <table class="tblLdapSearch detailTable">
+                                <caption class="clipForScreenReader">List of LDAP search queries and corresponing Library access.</caption>
+                                <thead><tr>
+                                  <th scope="col" class="detailTableHeaderCell"></th>
+                                  <th scope="col" class="detailTableHeaderCell">LDAP Query</th>
+                                  <th scope="col" class="detailTableHeaderCell">Libraries</th>
+                                </tr></thead>
+                                <tbody class="resultBody" id="ldapSearchLibraryTable">
+                                  <tr>
+                                  <td><button type="button" is="emby-button" 
+                                    class="raised raised-mini btnRevoke emby-button"
+                                    data-mini="true"
+                                    title="Delete" style="margin:0;">Delete</button></td>
+                                  <td class='ldapSearch'>ou=magic</td>
+                                  <td class='ldapLibraries' data-libraries='feadbeef, f03f3ffa, dbcea80134'>Collections, Movies, Shows</td>
+                                </tr>
+                                </tbody>
+                              </table>
+                              </div>
+
                             </div>
                         <div>
                             <button is="emby-button" type="submit" data-theme="b" class="raised button-submit block">
@@ -163,8 +193,9 @@
                         LdapConfigurationPage.chkEnableAllFolders.checked = config.EnableAllFolders;
                         /* Default to empty array if Enabled Folders is not set */
                         config.EnabledFolders = config.EnabledFolders || [];
-                        loadMediaFolders(config).then(() => {
+                        LdapConfigurationPage.mediaFolders = loadMediaFolders(config).then((folders) => {
                           Dashboard.hideLoadingMsg();
+                          return folders;
                         });
                     });
 
@@ -174,13 +205,13 @@
                     }
 
                     function loadMediaFolders(config) {
-                      if (!LdapConfigurationPage.folderAccessList) {
-                        return Promise.resolve();
-                      }
-
                       return window.ApiClient.getJSON(window.ApiClient.getUrl('Library/MediaFolders', {
                         IsHidden: false
                       })).then((mediaFolders) => {
+                        if (!LdapConfigurationPage.folderAccessList) {
+                          return mediaFolders;
+                        }
+
                         let html = '';
                         html += '<h3 class="checkboxListLabel">${HeaderLibraries}</h3>';
                         html += '<div id="folderList" class="checkboxList paperList checkboxList-paperList">';
@@ -214,6 +245,8 @@
                             folder.checked = event.currentTarget.checked;
                           });
                         });
+
+                        return mediaFolders;
                       });
                     }
                 });
@@ -243,6 +276,18 @@
                         folders = Array.prototype.filter.call(folders, folder => folder.checked)
                           .map(folder => folder.getAttribute("data-id"));
                         config.EnabledFolders = folders;
+                        let ldapMatchFolders = document.querySelectorAll('#ldapSearchLibraryTable tr');
+                        ldapMatchFolders = Array.prototype.map.call(ldapMatchFolders, tr => {
+                          return { 
+                            search: tr.querySelector('.ldapSearch').textContent,
+                            libraries: tr.querySelector('.ldapLibraries')
+                              .getAttribute('data-libraries')
+                              .split(',')
+                              .map(text => text.trim())
+                          };  
+                        });
+                        console.log(ldapMatchFolders);
+                        config.LdapMatchFolders = ldapMatchFolders;
                         window.ApiClient.updatePluginConfiguration(LdapConfigurationPage.pluginUniqueId, config).then(Dashboard.processPluginConfigurationUpdateResult);
                     });
 
